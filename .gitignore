@@ -37,8 +37,3 @@ coverage/
 
 # TypeScript specific
 *.local
-
-# Custom builds
-*.js
-*.jsx
-

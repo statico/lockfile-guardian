@@ -1,7 +1,7 @@
 import { createHash } from "crypto";
-import { readFileSync, existsSync, statSync } from "fs";
-import { resolve, join } from "path";
-import { PackageManager, LockfileInfo, LockfileGuardianConfig } from "./types";
+import { existsSync, readFileSync, statSync } from "fs";
+import { join, resolve } from "path";
+import { LockfileGuardianConfig, LockfileInfo, PackageManager } from "./types";
 
 export const PACKAGE_MANAGERS: PackageManager[] = [
   { name: "pnpm", lockFile: "pnpm-lock.yaml", installCommand: "pnpm install" },
@@ -40,6 +40,57 @@ export function isGitRepository(cwd: string = process.cwd()): boolean {
 
 export function getGitHooksDir(cwd: string = process.cwd()): string {
   return join(cwd, ".git", "hooks");
+}
+
+export function getHuskyHooksDir(cwd: string = process.cwd()): string {
+  return join(cwd, ".husky");
+}
+
+export function getGitHooksPath(cwd: string = process.cwd()): string {
+  try {
+    const { execSync } = require("child_process");
+    const result = execSync("git config --get core.hooksPath", {
+      cwd,
+      encoding: "utf8",
+      stdio: "pipe",
+    });
+    return resolve(cwd, result.trim());
+  } catch {
+    // No custom hooks path set, use default
+    return getGitHooksDir(cwd);
+  }
+}
+
+export function isHuskyProject(cwd: string = process.cwd()): boolean {
+  // Check if .husky directory exists
+  const huskyDir = getHuskyHooksDir(cwd);
+  if (!existsSync(huskyDir)) {
+    return false;
+  }
+
+  // Check if core.hooksPath is set to .husky
+  try {
+    const { execSync } = require("child_process");
+    const hooksPath = execSync("git config --get core.hooksPath", {
+      cwd,
+      encoding: "utf8",
+      stdio: "pipe",
+    }).trim();
+
+    const resolvedHooksPath = resolve(cwd, hooksPath);
+    const resolvedHuskyDir = resolve(cwd, ".husky");
+
+    return resolvedHooksPath === resolvedHuskyDir;
+  } catch {
+    return false;
+  }
+}
+
+export function getActiveHooksDir(cwd: string = process.cwd()): string {
+  if (isHuskyProject(cwd)) {
+    return getHuskyHooksDir(cwd);
+  }
+  return getGitHooksPath(cwd);
 }
 
 export function getGuardianDataPath(cwd: string = process.cwd()): string {

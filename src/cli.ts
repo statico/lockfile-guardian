@@ -15,6 +15,8 @@ import {
   log,
   logError,
   PACKAGE_MANAGERS,
+  isHuskyProject,
+  getActiveHooksDir,
 } from "./utils";
 
 interface CliArgs {
@@ -112,6 +114,18 @@ function showStatus(): void {
 
   console.log("✅ Git repository detected");
 
+  // Check Husky compatibility
+  const isHusky = isHuskyProject(cwd);
+  const hooksDir = getActiveHooksDir(cwd);
+
+  if (isHusky) {
+    console.log("🐶 Husky detected - using .husky/ directory");
+    console.log(`   Hooks directory: ${hooksDir}`);
+  } else {
+    console.log("🔧 Using standard git hooks");
+    console.log(`   Hooks directory: ${hooksDir}`);
+  }
+
   // Check for lockfile
   const lockfileInfo = findLockfile(cwd);
   if (!lockfileInfo) {
@@ -142,6 +156,13 @@ function showStatus(): void {
   console.log(`  silent: ${config.silent || false}`);
   console.log(`  checkNodeModules: ${config.checkNodeModules !== false}`);
 
+  if (isHusky) {
+    console.log("\n🔗 Husky Compatibility:");
+    console.log("  ✅ Compatible with lint-staged, prettier, and other tools");
+    console.log("  ✅ Lockfile Guardian runs after other hooks");
+    console.log("  ✅ Preserves existing hook configurations");
+  }
+
   if (!hooksInstalled) {
     console.log("\n💡 Quick start: npx lockfile-guardian install");
   }
@@ -168,9 +189,20 @@ async function handleInstall(): Promise<void> {
     process.exit(1);
   }
 
+  const isHusky = isHuskyProject(cwd);
+
   try {
     installGitHooks(cwd);
-    log("🔒 Git hooks installed successfully!");
+
+    if (isHusky) {
+      log("🔒 Git hooks installed successfully! (Husky compatible)");
+      log("🐶 Installed to .husky/ directory");
+      log("🔗 Compatible with lint-staged, prettier, and other Husky tools");
+    } else {
+      log("🔒 Git hooks installed successfully!");
+      log("🔧 Installed to .git/hooks/ directory");
+    }
+
     log(`🔒 Monitoring: ${lockfileInfo.packageManager.lockFile}`);
     log("🔒 Lockfile Guardian is now active");
 

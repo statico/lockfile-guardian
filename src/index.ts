@@ -1,20 +1,20 @@
 // Main exports for programmatic usage
 export {
+  areHooksInstalled,
   installGitHooks,
   uninstallGitHooks,
-  areHooksInstalled,
 } from "./git-hooks";
 export {
   checkLockfile,
-  storeCurrentHash,
-  getStoredHash,
   clearStoredHash,
+  getStoredHash,
+  storeCurrentHash,
 } from "./guardian";
+export * from "./types";
 export {
   findLockfile,
   isGitRepository,
-  loadConfig,
   isNodeModulesIgnored,
+  loadConfig,
   PACKAGE_MANAGERS,
 } from "./utils";
-export * from "./types";

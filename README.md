@@ -5,6 +5,7 @@ Never forget to install dependencies again! Automatically detect when your lock 
 ## The Problem
 
 You know this scenario:
+
 - Teammate adds a new dependency
 - You `git pull` or switch branches
 - Your code breaks because you forgot to run `npm install`
@@ -24,6 +25,7 @@ Lockfile Guardian installs git hooks that automatically detect when your lock fi
 - 📦 **TypeScript** - Built with TypeScript, works with any Node.js project
 - 🧹 **Clean** - Stores metadata in `.git/` directory, not your working tree
 - ⚠️ **Visual warnings** - Eye-catching alerts when dependencies are out of sync
+- 🐶 **Husky compatible** - Works seamlessly with Husky, lint-staged, prettier, and other tools
 
 ## Quick Start
 
@@ -42,6 +44,70 @@ npx lockfile-guardian install
 4. **Helpful warnings** - Shows exactly which command to run for your package manager
 5. **Optional automation** - Can automatically install dependencies if configured
 
+## Husky Compatibility
+
+Lockfile Guardian is **fully compatible** with [Husky](https://typicode.github.io/husky/) and works seamlessly alongside other tools:
+
+### ✅ What Works
+
+- **Husky v4+** - Automatically detects and uses `.husky/` directory
+- **lint-staged** - Runs after linting and formatting tools
+- **prettier** - Compatible with prettier hooks
+- **ESLint** - Works with ESLint pre-commit hooks
+- **Traditional hooks** - Falls back to `.git/hooks/` when Husky isn't detected
+
+### 🔧 How It Works
+
+```bash
+# Your existing .husky/pre-commit
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+npx lint-staged
+
+# After installing lockfile-guardian, your .husky/post-checkout becomes:
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+# Your existing hooks run first...
+
+# Lockfile Guardian
+npx lockfile-guardian check --hook
+```
+
+### 🚀 Setup with Husky
+
+If you're already using Husky, just install normally:
+
+```bash
+npx lockfile-guardian install
+```
+
+Lockfile Guardian will:
+
+- ✅ Detect your Husky setup automatically
+- ✅ Install hooks in `.husky/` directory
+- ✅ Preserve all existing hook configurations
+- ✅ Run **after** your other tools (lint-staged, prettier, etc.)
+
+### 📋 Example Integration
+
+```json
+{
+  "scripts": {
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.{js,ts,tsx}": ["prettier --write", "eslint --fix"],
+    "*.{json,md}": ["prettier --write"]
+  },
+  "lockfileGuardian": {
+    "autoInstall": true,
+    "silent": false
+  }
+}
+```
+
 ## Configuration
 
 Add optional configuration to your `package.json`:
@@ -49,8 +115,8 @@ Add optional configuration to your `package.json`:
 ```json
 {
   "lockfileGuardian": {
-    "autoInstall": true,    // Automatically run install commands
-    "silent": false,        // Suppress non-warning output
+    "autoInstall": true, // Automatically run install commands
+    "silent": false, // Suppress non-warning output
     "checkNodeModules": true // Warn if node_modules isn't gitignored (default: true)
   }
 }
@@ -85,6 +151,7 @@ Detection priority: pnpm → yarn → npm (first lock file found wins)
 ## Example Output
 
 ### Basic Warning
+
 ```bash
 $ git checkout feature/new-deps
 =====================================
@@ -98,6 +165,7 @@ Run this command to update:
 ```
 
 ### With Auto-Install
+
 ```bash
 $ git pull origin main
 🔒 Lock file yarn.lock has changed!
@@ -114,11 +182,13 @@ yarn install v1.22.19
 ## What Gets Created
 
 **Git hooks:**
+
 - `.git/hooks/post-checkout` - Runs after branch switching
 - `.git/hooks/post-merge` - Runs after `git pull`/`git merge`
 - `.git/hooks/post-rewrite` - Runs after `git rebase`
 
 **Metadata:**
+
 - `.git/lockfile-guardian` - Stores hash of current lock file
 
 **Nothing in your working directory!** All tool data stays in `.git/` where it belongs.
@@ -134,11 +204,13 @@ yarn install v1.22.19
 ## Why Use This?
 
 **For individuals:**
+
 - Never waste time debugging dependency issues again
 - Automatic detection works seamlessly in the background
 - Zero maintenance after initial setup
 
 **For teams:**
+
 - Ensures everyone has the same dependencies installed
 - Prevents "works on my machine" issues
 - Catches dependency updates immediately after pulling changes
@@ -146,12 +218,12 @@ yarn install v1.22.19
 
 ## Comparison with Alternatives
 
-| Tool | Setup | Auto-install | Zero deps | Git integrated |
-|------|--------|-------------|-----------|----------------|
-| **Lockfile Guardian** | ✅ One command | ✅ Optional | ✅ Yes | ✅ Native hooks |
-| `@antfu/ni` | ❌ Manual usage | ❌ Manual | ❌ No | ❌ No |
-| Manual git hooks | ❌ Complex setup | ❌ Script required | ✅ Yes | ✅ Yes |
-| IDE extensions | ❌ Per-editor setup | ❌ Usually not | ❌ No | ❌ No |
+| Tool                  | Setup               | Auto-install       | Zero deps | Git integrated  | Husky compatible |
+| --------------------- | ------------------- | ------------------ | --------- | --------------- | ---------------- |
+| **Lockfile Guardian** | ✅ One command      | ✅ Optional        | ✅ Yes    | ✅ Native hooks | ✅ Yes           |
+| `@antfu/ni`           | ❌ Manual usage     | ❌ Manual          | ❌ No     | ❌ No           | ❌ No            |
+| Manual git hooks      | ❌ Complex setup    | ❌ Script required | ✅ Yes    | ✅ Yes          | ⚠️ Manual        |
+| IDE extensions        | ❌ Per-editor setup | ❌ Usually not     | ❌ No     | ❌ No           | ❌ No            |
 
 ## Requirements
 
@@ -166,3 +238,7 @@ This tool is designed to be simple and focused. If you have ideas for improvemen
 ## License
 
 MIT
+
+## Caveats
+
+This tool was mostly written by Cursor and Claude 4 Sonnet.

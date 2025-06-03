@@ -10,7 +10,9 @@
     "build": "tsc",
     "dev": "tsc --watch",
     "prepublishOnly": "pnpm build",
-    "test": "node --test dist/**/*.test.js"
+    "test": "node --test tests/**/*.test.js",
+    "test:unit": "node --test tests/unit/**/*.test.js",
+    "test:integration": "node --test tests/integration/**/*.test.js"
   },
   "keywords": [
     "git",
