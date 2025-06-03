@@ -1,5 +1,7 @@
 # 🔒 Lockfile Guardian
 
+[![GitHub repo](https://img.shields.io/badge/github-repo-green)](https://github.com/statico/lockfile-guardian) [![npm](https://img.shields.io/npm/v/lockfile-guardian.svg)](https://www.npmjs.com/package/lockfile-guardian) [![Test](https://github.com/statico/lockfile-guardian/workflows/Test/badge.svg)](https://github.com/statico/lockfile-guardian/actions?query=workflow%3ATest) [![License](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/statico/lockfile-guardian/blob/main/LICENSE)
+
 Never forget to install dependencies again! Automatically detect when your lock files change after git operations and warn you (or auto-install) when your dependencies are out of sync.
 
 ## The Problem
