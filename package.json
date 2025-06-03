@@ -1,0 +1,40 @@
+{
+  "name": "lockfile-guardian",
+  "version": "1.0.0",
+  "description": "Never forget to install dependencies again! Automatically detect when your lock files change after git operations and warn you (or auto-install) when your dependencies are out of sync.",
+  "main": "dist/index.js",
+  "bin": {
+    "lockfile-guardian": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "prepublishOnly": "pnpm build",
+    "test": "node --test dist/**/*.test.js"
+  },
+  "keywords": [
+    "git",
+    "hooks",
+    "dependencies",
+    "lockfile",
+    "npm",
+    "yarn",
+    "pnpm",
+    "guardian",
+    "cli"
+  ],
+  "author": "",
+  "license": "MIT",
+  "engines": {
+    "node": ">=14"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  },
+  "files": [
+    "dist/**/*",
+    "README.md",
+    "package.json"
+  ]
+}

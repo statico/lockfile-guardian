@@ -1,0 +1,54 @@
+lockfileVersion: "9.0"
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+  .:
+    devDependencies:
+      "@types/node":
+        specifier: ^20.0.0
+        version: 20.17.57
+      typescript:
+        specifier: ^5.0.0
+        version: 5.8.3
+      lodash:
+        specifier: ^4.17.21
+        version: 4.17.21
+
+packages:
+  "@types/node@20.17.57":
+    resolution:
+      {
+        integrity: sha512-jIvbWuiYBb8mI7SgA0ZKC4OLn+9eGqFdhxMNEWX11+idbz+pLJ3+Xf9KvVLb8X8TW21E9KjFCEOb/MdGxZjQ==,
+      }
+
+  typescript@5.8.3:
+    resolution:
+      {
+        integrity: sha512-C1GIOfIIuENNoqtDFqo/2T6K0D/scRAFfMGGNf4+gJNLOczf6dJTBNQLpjw2VmLOvNS5VXJvgWZQz3SJfg0xA==,
+      }
+    engines: { node: ">=14.17" }
+    hasBin: true
+
+  undici-types@6.19.8:
+    resolution:
+      {
+        integrity: sha512-ve2KP6f/JnbPBFyobGHuerC9g1FYGn/F8n1LWTwNxCEzd6IfqTwUQcNXgEtmmQ6DlRrC1hrSrBnCZPokRrDHjw==,
+      }
+
+  lodash@4.17.21:
+    resolution:
+      {
+        integrity: sha512-v2kDEe57lecTulaDIuNTPy3Ry4gLGJ6Z1O3vE1krgXZNrsQ+LFTGHVxVjcXPs17LhbZVGedAJv8XZ1tvj5FvSg==,
+      }
+
+snapshots:
+  "@types/node@20.17.57":
+    dependencies:
+      undici-types: 6.19.8
+
+  typescript@5.8.3: {}
+
+  undici-types@6.19.8: {}

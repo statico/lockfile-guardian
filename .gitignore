@@ -1,7 +1,5 @@
 # Node.js
 node_modules/
-package-lock.json
-yarn.lock
 
 # TypeScript
 dist/
@@ -39,7 +37,6 @@ coverage/
 
 # TypeScript specific
 *.local
-*.d.ts
 
 # Custom builds
 *.js
