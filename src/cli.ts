@@ -76,21 +76,15 @@ USAGE:
   npx lockfile-guardian [command]
 
 COMMANDS:
-  install           Setup lockfile monitoring (one-time setup)
-  install-git-hooks Install git hooks to monitor branch changes
-  install-post-hooks Install post-install script to track package installs
-  uninstall         Remove all hooks and cleanup
-  uninstall-git-hooks Remove git hooks only
-  uninstall-post-hooks Remove post-install hooks only
-  check             Manually check for lock file changes
-  post-install      Update hash after package install (called by postinstall script)
-  help              Show this help message
+  install       Setup lockfile monitoring (one-time setup)
+  uninstall     Remove all hooks and cleanup
+  check         Manually check for lock file changes
+  help          Show this help message
 
 EXAMPLES:
-  npx lockfile-guardian install            # Setup lockfile monitoring (recommended)
-  npx lockfile-guardian install-git-hooks  # Use git hooks specifically
-  npx lockfile-guardian check              # Check dependencies manually
-  npx lockfile-guardian uninstall          # Remove all hooks
+  npx lockfile-guardian install      # Setup lockfile monitoring
+  npx lockfile-guardian check        # Check dependencies manually
+  npx lockfile-guardian uninstall    # Remove all hooks
 
 CONFIGURATION:
 Add optional configuration to your package.json:
@@ -102,13 +96,6 @@ Add optional configuration to your package.json:
     "checkNodeModules": true   // Warn if node_modules isn't gitignored
   }
 }
-
-HOOK STRATEGIES:
-  Default: Post-install hooks (most accurate, recommended)
-  Alternative: Git hooks (warns on branch changes)
-
-  The default approach only tracks changes when you actually install packages,
-  eliminating false warnings when just switching branches to read code.
 
 SUPPORTED PACKAGE MANAGERS:
   • pnpm     - pnpm-lock.yaml → pnpm install
@@ -175,13 +162,8 @@ function showStatus(): void {
     console.log("❌ Post-install hook not installed");
   }
 
-  if (!gitHooksInstalled && !postInstallHookInstalled) {
-    console.log(
-      '   Run "npx lockfile-guardian install" to set up (recommended)'
-    );
-    console.log(
-      '   Or "npx lockfile-guardian install-git-hooks" for git-based monitoring'
-    );
+  if (!gitHooksInstalled || !postInstallHookInstalled) {
+    console.log('   Run "npx lockfile-guardian install" to set up');
   }
 
   // Show configuration
@@ -202,11 +184,6 @@ function showStatus(): void {
 }
 
 async function handleInstall(): Promise<void> {
-  // Use post-install hooks by default since they're more accurate
-  await handleInstallPostHooks();
-}
-
-async function handleInstallGitHooks(): Promise<void> {
   const cwd = process.cwd();
 
   if (!isGitRepository(cwd)) {
@@ -230,58 +207,31 @@ async function handleInstallGitHooks(): Promise<void> {
   const isHusky = isHuskyProject(cwd);
 
   try {
+    // Install both git hooks and post-install hooks for optimal experience
     installGitHooks(cwd);
-
-    if (isHusky) {
-      log("🔒 Git hooks installed successfully! (Husky compatible)");
-      log("🐶 Installed to .husky/ directory");
-      log("🔗 Compatible with lint-staged, prettier, and other Husky tools");
-    } else {
-      log("🔒 Git hooks installed successfully!");
-      log("🔧 Installed to .git/hooks/ directory");
-    }
-
-    log(`🔒 Monitoring: ${lockfileInfo.packageManager.lockFile}`);
-    log("🔒 Lockfile Guardian git hooks are now active");
-
-    // Initialize with current hash
-    await checkLockfile(false, cwd);
-  } catch (error) {
-    logError(
-      `Error installing git hooks: ${
-        error instanceof Error ? error.message : "Unknown error"
-      }`
-    );
-    process.exit(1);
-  }
-}
-
-async function handleInstallPostHooks(): Promise<void> {
-  const cwd = process.cwd();
-
-  const lockfileInfo = findLockfile(cwd);
-  if (!lockfileInfo) {
-    logError("Error: No supported lockfile found.");
-    logError(
-      `Supported lockfiles: ${PACKAGE_MANAGERS.map((pm) => pm.lockFile).join(
-        ", "
-      )}`
-    );
-    process.exit(1);
-  }
-
-  try {
     installPostInstallHook(cwd);
 
+    if (isHusky) {
+      log("🔒 Lockfile Guardian installed successfully! (Husky compatible)");
+      log("🐶 Git hooks installed to .husky/ directory");
+      log("🔗 Compatible with lint-staged, prettier, and other Husky tools");
+    } else {
+      log("🔒 Lockfile Guardian installed successfully!");
+      log("🔧 Git hooks installed to .git/hooks/ directory");
+    }
+
+    log("🔒 Post-install hook added to package.json");
     log(`🔒 Monitoring: ${lockfileInfo.packageManager.lockFile}`);
-    log("🔒 Post-install hook is now active");
-    log("🔒 Hash will be updated only when you run package install commands");
+    log(
+      "🔒 Git hooks will warn about lockfile changes when switching branches"
+    );
+    log("🔒 Post-install hook will update hash when you install packages");
 
     // Initialize with current hash
     await checkLockfile(false, cwd);
   } catch (error) {
     logError(
-      `Error installing post-install hook: ${
+      `Error installing lockfile guardian: ${
         error instanceof Error ? error.message : "Unknown error"
       }`
     );
@@ -301,38 +251,6 @@ async function handleUninstall(): Promise<void> {
   } catch (error) {
     logError(
       `Error uninstalling: ${
-        error instanceof Error ? error.message : "Unknown error"
-      }`
-    );
-    process.exit(1);
-  }
-}
-
-async function handleUninstallGitHooks(): Promise<void> {
-  const cwd = process.cwd();
-
-  try {
-    uninstallGitHooks(cwd);
-    log("🔒 Git hooks uninstalled successfully");
-  } catch (error) {
-    logError(
-      `Error uninstalling git hooks: ${
-        error instanceof Error ? error.message : "Unknown error"
-      }`
-    );
-    process.exit(1);
-  }
-}
-
-async function handleUninstallPostHooks(): Promise<void> {
-  const cwd = process.cwd();
-
-  try {
-    uninstallPostInstallHook(cwd);
-    log("🔒 Post-install hook uninstalled successfully");
-  } catch (error) {
-    logError(
-      `Error uninstalling post-install hook: ${
         error instanceof Error ? error.message : "Unknown error"
       }`
     );
@@ -383,24 +301,8 @@ async function main(): Promise<void> {
       await handleInstall();
       break;
 
-    case "install-git-hooks":
-      await handleInstallGitHooks();
-      break;
-
-    case "install-post-hooks":
-      await handleInstallPostHooks();
-      break;
-
     case "uninstall":
       await handleUninstall();
-      break;
-
-    case "uninstall-git-hooks":
-      await handleUninstallGitHooks();
-      break;
-
-    case "uninstall-post-hooks":
-      await handleUninstallPostHooks();
       break;
 
     case "check":

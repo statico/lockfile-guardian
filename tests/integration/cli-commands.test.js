@@ -50,7 +50,7 @@ describe("CLI Commands Integration Tests", () => {
       assertContains(result.stdout, "❌ Post-install hook not installed");
       assertContains(
         result.stdout,
-        'Run "npx lockfile-guardian install" to set up (recommended)'
+        'Run "npx lockfile-guardian install" to set up'
       );
       assertContains(
         result.stdout,
