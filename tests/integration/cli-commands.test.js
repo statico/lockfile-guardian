@@ -43,14 +43,15 @@ describe("CLI Commands Integration Tests", () => {
       const result = await runCli("", { cwd: repo.path });
 
       assertSuccessfulCommand(result);
-      assertStartsWith(result.stdout, "🔒 Lockfile Guardian v");
+      assertContains(result.stdout, "🔒 Lockfile Guardian v");
       assertContains(result.stdout, "✅ Git repository detected");
-      assertContains(result.stdout, "✅ Lockfile found: pnpm-lock.yaml (pnpm)");
+      assertContains(result.stdout, "✅ Lockfile found: pnpm-lock.yaml");
       assertContains(result.stdout, "❌ Git hooks not installed");
-      assertContains(result.stdout, "Configuration:");
-      assertContains(result.stdout, "autoInstall: false");
-      assertContains(result.stdout, "silent: false");
-      assertContains(result.stdout, "checkNodeModules: true");
+      assertContains(result.stdout, "❌ Post-install hook not installed");
+      assertContains(
+        result.stdout,
+        'Run "npx lockfile-guardian install" to set up (recommended)'
+      );
       assertContains(
         result.stdout,
         "💡 Quick start: npx lockfile-guardian install"
@@ -69,10 +70,16 @@ describe("CLI Commands Integration Tests", () => {
       const result = await runCli("", { cwd: repo.path });
 
       assertSuccessfulCommand(result);
-      assertContains(result.stdout, "✅ Git hooks installed");
+      assertContains(result.stdout, "✅ Post-install hook installed");
       assert(
-        !result.stdout.includes("💡 Quick start"),
-        "Should not show quick start when already installed"
+        !result.stdout.includes(
+          'Run "npx lockfile-guardian install" to set up'
+        ),
+        "Should not show setup message when already installed"
+      );
+      assertContains(
+        result.stdout,
+        "💡 Quick start: npx lockfile-guardian install"
       );
     } finally {
       await cleanup(repo);

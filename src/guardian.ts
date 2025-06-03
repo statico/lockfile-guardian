@@ -79,6 +79,11 @@ function runInstallCommand(command: string, cwd: string): Promise<boolean> {
   });
 }
 
+/**
+ * Check if lockfile has changed compared to stored hash.
+ * This function only checks and warns - it doesn't update the stored hash.
+ * Hash updates should happen via post-install scripts when packages are actually installed.
+ */
 export async function checkLockfile(
   isHook: boolean = false,
   cwd: string = process.cwd()
@@ -103,10 +108,12 @@ export async function checkLockfile(
   const storedHash = getStoredHash(cwd);
   const currentHash = lockfileInfo.hash;
 
-  // First run or no stored hash
+  // First run or no stored hash - store current hash without warning
   if (!storedHash) {
     storeCurrentHash(cwd);
-    log("🔒 Lockfile Guardian initialized", config.silent);
+    if (!isHook) {
+      log("🔒 Lockfile Guardian initialized", config.silent);
+    }
     return;
   }
 
@@ -133,14 +140,30 @@ export async function checkLockfile(
 
     if (success) {
       log("🔒 Dependencies updated successfully!", config.silent);
-      storeCurrentHash(cwd);
+      // Note: Hash will be updated by post-install script, not here
     } else {
       logError("🔒 Failed to install dependencies. Please run manually:");
       logError(`  ${installCommand}`);
     }
   } else {
-    // Show warning
+    // Show warning - don't update hash until user actually runs install
     const warningMessage = createWarningBox(lockfileName, installCommand);
     logWarning(warningMessage);
   }
+}
+
+/**
+ * Called by post-install scripts to update the stored hash after successful package installation.
+ * This ensures we only track hash changes when packages are actually installed.
+ */
+export function updateHashAfterInstall(cwd: string = process.cwd()): void {
+  const config = loadConfig(cwd);
+  const lockfileInfo = findLockfile(cwd);
+
+  if (!lockfileInfo) {
+    return;
+  }
+
+  storeCurrentHash(cwd);
+  log("🔒 Lockfile Guardian: Dependencies hash updated", config.silent);
 }

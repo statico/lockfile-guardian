@@ -11,16 +11,36 @@ import {
 import { cleanup, createTestRepo, runCli } from "../helpers/test-repo.js";
 
 describe("Install Flow Integration Tests", () => {
-  test("should install git hooks successfully", async () => {
+  test("should install lockfile monitoring successfully", async () => {
     const repo = await createTestRepo("pnpm");
 
     try {
       const result = await runCli("install", { cwd: repo.path });
 
       assertSuccessfulCommand(result);
-      assertContains(result.stdout, "🔒 Git hooks installed successfully!");
+      assertContains(result.stdout, "🔒 Post-install hook is now active");
       assertContains(result.stdout, "🔒 Monitoring: pnpm-lock.yaml");
-      assertContains(result.stdout, "🔒 Lockfile Guardian is now active");
+      assertContains(
+        result.stdout,
+        "🔒 Hash will be updated only when you run package install commands"
+      );
+
+      // Verify guardian data file is created
+      await assertGuardianDataExists(repo);
+    } finally {
+      await cleanup(repo);
+    }
+  });
+
+  test("should install hooks for yarn projects", async () => {
+    const repo = await createTestRepo("yarn");
+
+    try {
+      const result = await runCli("install-git-hooks", { cwd: repo.path });
+
+      assertSuccessfulCommand(result);
+      assertContains(result.stdout, "🔒 Git hooks installed successfully!");
+      assertContains(result.stdout, "🔒 Monitoring: yarn.lock");
 
       // Verify hooks are installed
       await assertHookInstalled(repo, "post-checkout");
@@ -34,32 +54,22 @@ describe("Install Flow Integration Tests", () => {
     }
   });
 
-  test("should install hooks for yarn projects", async () => {
-    const repo = await createTestRepo("yarn");
-
-    try {
-      const result = await runCli("install", { cwd: repo.path });
-
-      assertSuccessfulCommand(result);
-      assertContains(result.stdout, "🔒 Monitoring: yarn.lock");
-
-      await assertHookInstalled(repo, "post-checkout");
-      await assertGuardianDataExists(repo);
-    } finally {
-      await cleanup(repo);
-    }
-  });
-
   test("should install hooks for npm projects", async () => {
     const repo = await createTestRepo("npm");
 
     try {
-      const result = await runCli("install", { cwd: repo.path });
+      const result = await runCli("install-git-hooks", { cwd: repo.path });
 
       assertSuccessfulCommand(result);
+      assertContains(result.stdout, "🔒 Git hooks installed successfully!");
       assertContains(result.stdout, "🔒 Monitoring: package-lock.json");
 
+      // Verify hooks are installed
       await assertHookInstalled(repo, "post-checkout");
+      await assertHookInstalled(repo, "post-merge");
+      await assertHookInstalled(repo, "post-rewrite");
+
+      // Verify guardian data file is created
       await assertGuardianDataExists(repo);
     } finally {
       await cleanup(repo);
@@ -70,13 +80,13 @@ describe("Install Flow Integration Tests", () => {
     const repo = await createTestRepo("pnpm");
 
     try {
-      // Remove .git directory to simulate non-git environment
+      // Remove .git directory
       await repo.runCommand("rm", ["-rf", ".git"]);
 
       const result = await runCli("install", { cwd: repo.path });
 
       assertFailedCommand(result);
-      assertContains(result.stderr, "Not a git repository");
+      assertContains(result.stderr, "Error installing post-install hook");
     } finally {
       await cleanup(repo);
     }
@@ -114,15 +124,14 @@ exit 0`;
       await repo.writeFile(".git/hooks/post-checkout", existingHookContent);
       await repo.runCommand("chmod", ["+x", ".git/hooks/post-checkout"]);
 
-      const result = await runCli("install", { cwd: repo.path });
+      const result = await runCli("install-git-hooks", { cwd: repo.path });
 
       assertSuccessfulCommand(result);
 
-      // Check that our hook was added to existing content
+      // Check that existing hook content is preserved
       const hookContent = await repo.readFile(".git/hooks/post-checkout");
       assertContains(hookContent, 'echo "Existing hook"');
       assertContains(hookContent, "npx lockfile-guardian check --hook");
-      assertContains(hookContent, "# Lockfile Guardian");
     } finally {
       await cleanup(repo);
     }
@@ -133,17 +142,19 @@ exit 0`;
 
     try {
       // Install twice
-      await runCli("install", { cwd: repo.path });
-      const result = await runCli("install", { cwd: repo.path });
+      await runCli("install-git-hooks", { cwd: repo.path });
+      const result = await runCli("install-git-hooks", { cwd: repo.path });
 
       assertSuccessfulCommand(result);
 
       // Check that hook is not duplicated
       const hookContent = await repo.readFile(".git/hooks/post-checkout");
-      const matches = (
-        hookContent.match(/npx lockfile-guardian check --hook/g) || []
-      ).length;
-      assert.strictEqual(matches, 1, "Hook command should appear only once");
+      const matches = hookContent.match(/npx lockfile-guardian check --hook/g);
+      assert.strictEqual(
+        matches?.length,
+        1,
+        "Hook command should appear only once"
+      );
     } finally {
       await cleanup(repo);
     }

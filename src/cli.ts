@@ -9,6 +9,12 @@ import {
 } from "./git-hooks";
 import { checkLockfile, clearStoredHash } from "./guardian";
 import {
+  installPostInstallHook,
+  uninstallPostInstallHook,
+  isPostInstallHookInstalled,
+  runPostInstallHook,
+} from "./post-install";
+import {
   findLockfile,
   loadConfig,
   isGitRepository,
@@ -70,15 +76,21 @@ USAGE:
   npx lockfile-guardian [command]
 
 COMMANDS:
-  install     Setup git hooks (one-time setup)
-  uninstall   Remove all hooks and cleanup
-  check       Manually check for lock file changes
-  help        Show this help message
+  install           Setup lockfile monitoring (one-time setup)
+  install-git-hooks Install git hooks to monitor branch changes
+  install-post-hooks Install post-install script to track package installs
+  uninstall         Remove all hooks and cleanup
+  uninstall-git-hooks Remove git hooks only
+  uninstall-post-hooks Remove post-install hooks only
+  check             Manually check for lock file changes
+  post-install      Update hash after package install (called by postinstall script)
+  help              Show this help message
 
 EXAMPLES:
-  npx lockfile-guardian install      # Setup git hooks
-  npx lockfile-guardian check        # Check dependencies manually
-  npx lockfile-guardian uninstall    # Remove all hooks
+  npx lockfile-guardian install            # Setup lockfile monitoring (recommended)
+  npx lockfile-guardian install-git-hooks  # Use git hooks specifically
+  npx lockfile-guardian check              # Check dependencies manually
+  npx lockfile-guardian uninstall          # Remove all hooks
 
 CONFIGURATION:
 Add optional configuration to your package.json:
@@ -90,6 +102,13 @@ Add optional configuration to your package.json:
     "checkNodeModules": true   // Warn if node_modules isn't gitignored
   }
 }
+
+HOOK STRATEGIES:
+  Default: Post-install hooks (most accurate, recommended)
+  Alternative: Git hooks (warns on branch changes)
+
+  The default approach only tracks changes when you actually install packages,
+  eliminating false warnings when just switching branches to read code.
 
 SUPPORTED PACKAGE MANAGERS:
   • pnpm     - pnpm-lock.yaml → pnpm install
@@ -141,12 +160,28 @@ function showStatus(): void {
   );
 
   // Check if hooks are installed
-  const hooksInstalled = areHooksInstalled(cwd);
-  if (hooksInstalled) {
+  const gitHooksInstalled = areHooksInstalled(cwd);
+  const postInstallHookInstalled = isPostInstallHookInstalled(cwd);
+
+  if (gitHooksInstalled) {
     console.log("✅ Git hooks installed");
   } else {
     console.log("❌ Git hooks not installed");
-    console.log('   Run "npx lockfile-guardian install" to set up');
+  }
+
+  if (postInstallHookInstalled) {
+    console.log("✅ Post-install hook installed");
+  } else {
+    console.log("❌ Post-install hook not installed");
+  }
+
+  if (!gitHooksInstalled && !postInstallHookInstalled) {
+    console.log(
+      '   Run "npx lockfile-guardian install" to set up (recommended)'
+    );
+    console.log(
+      '   Or "npx lockfile-guardian install-git-hooks" for git-based monitoring'
+    );
   }
 
   // Show configuration
@@ -163,12 +198,15 @@ function showStatus(): void {
     console.log("  ✅ Preserves existing hook configurations");
   }
 
-  if (!hooksInstalled) {
-    console.log("\n💡 Quick start: npx lockfile-guardian install");
-  }
+  console.log("\n💡 Quick start: npx lockfile-guardian install");
 }
 
 async function handleInstall(): Promise<void> {
+  // Use post-install hooks by default since they're more accurate
+  await handleInstallPostHooks();
+}
+
+async function handleInstallGitHooks(): Promise<void> {
   const cwd = process.cwd();
 
   if (!isGitRepository(cwd)) {
@@ -204,7 +242,7 @@ async function handleInstall(): Promise<void> {
     }
 
     log(`🔒 Monitoring: ${lockfileInfo.packageManager.lockFile}`);
-    log("🔒 Lockfile Guardian is now active");
+    log("🔒 Lockfile Guardian git hooks are now active");
 
     // Initialize with current hash
     await checkLockfile(false, cwd);
@@ -218,17 +256,83 @@ async function handleInstall(): Promise<void> {
   }
 }
 
+async function handleInstallPostHooks(): Promise<void> {
+  const cwd = process.cwd();
+
+  const lockfileInfo = findLockfile(cwd);
+  if (!lockfileInfo) {
+    logError("Error: No supported lockfile found.");
+    logError(
+      `Supported lockfiles: ${PACKAGE_MANAGERS.map((pm) => pm.lockFile).join(
+        ", "
+      )}`
+    );
+    process.exit(1);
+  }
+
+  try {
+    installPostInstallHook(cwd);
+
+    log(`🔒 Monitoring: ${lockfileInfo.packageManager.lockFile}`);
+    log("🔒 Post-install hook is now active");
+    log("🔒 Hash will be updated only when you run package install commands");
+
+    // Initialize with current hash
+    await checkLockfile(false, cwd);
+  } catch (error) {
+    logError(
+      `Error installing post-install hook: ${
+        error instanceof Error ? error.message : "Unknown error"
+      }`
+    );
+    process.exit(1);
+  }
+}
+
 async function handleUninstall(): Promise<void> {
   const cwd = process.cwd();
 
   try {
     uninstallGitHooks(cwd);
+    uninstallPostInstallHook(cwd);
     clearStoredHash(cwd);
     log("🔒 Lockfile Guardian uninstalled successfully");
-    log("🔒 All git hooks and data have been removed");
+    log("🔒 All git hooks, post-install hooks, and data have been removed");
   } catch (error) {
     logError(
       `Error uninstalling: ${
+        error instanceof Error ? error.message : "Unknown error"
+      }`
+    );
+    process.exit(1);
+  }
+}
+
+async function handleUninstallGitHooks(): Promise<void> {
+  const cwd = process.cwd();
+
+  try {
+    uninstallGitHooks(cwd);
+    log("🔒 Git hooks uninstalled successfully");
+  } catch (error) {
+    logError(
+      `Error uninstalling git hooks: ${
+        error instanceof Error ? error.message : "Unknown error"
+      }`
+    );
+    process.exit(1);
+  }
+}
+
+async function handleUninstallPostHooks(): Promise<void> {
+  const cwd = process.cwd();
+
+  try {
+    uninstallPostInstallHook(cwd);
+    log("🔒 Post-install hook uninstalled successfully");
+  } catch (error) {
+    logError(
+      `Error uninstalling post-install hook: ${
         error instanceof Error ? error.message : "Unknown error"
       }`
     );
@@ -251,6 +355,21 @@ async function handleCheck(isHook: boolean = false): Promise<void> {
   }
 }
 
+async function handlePostInstall(): Promise<void> {
+  const cwd = process.cwd();
+
+  try {
+    runPostInstallHook(cwd);
+  } catch (error) {
+    logError(
+      `Error running post-install hook: ${
+        error instanceof Error ? error.message : "Unknown error"
+      }`
+    );
+    process.exit(1);
+  }
+}
+
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
 
@@ -264,12 +383,32 @@ async function main(): Promise<void> {
       await handleInstall();
       break;
 
+    case "install-git-hooks":
+      await handleInstallGitHooks();
+      break;
+
+    case "install-post-hooks":
+      await handleInstallPostHooks();
+      break;
+
     case "uninstall":
       await handleUninstall();
       break;
 
+    case "uninstall-git-hooks":
+      await handleUninstallGitHooks();
+      break;
+
+    case "uninstall-post-hooks":
+      await handleUninstallPostHooks();
+      break;
+
     case "check":
       await handleCheck(args.isHook);
+      break;
+
+    case "post-install":
+      await handlePostInstall();
       break;
 
     case "help":

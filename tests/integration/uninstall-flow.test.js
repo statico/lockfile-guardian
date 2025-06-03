@@ -27,7 +27,7 @@ describe("Uninstall Flow Integration Tests", () => {
       );
       assertContains(
         result.stdout,
-        "🔒 All git hooks and data have been removed"
+        "🔒 All git hooks, post-install hooks, and data have been removed"
       );
 
       // Verify hooks are removed

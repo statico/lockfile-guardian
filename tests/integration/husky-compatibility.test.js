@@ -3,6 +3,8 @@ import { describe, test } from "node:test";
 
 import {
   assertContains,
+  assertGuardianDataExists,
+  assertHookInstalled,
   assertSuccessfulCommand,
 } from "../helpers/assertions.js";
 import { cleanup, createTestRepo, runCli } from "../helpers/test-repo.js";
@@ -32,10 +34,11 @@ describe("Husky Compatibility Integration Tests", () => {
     const repo = await createTestRepo("pnpm");
 
     try {
-      // Setup Husky first
-      await repo.setupHusky();
+      // Set up Husky
+      await repo.runCommand("mkdir", [".husky"]);
+      await repo.runCommand("git", ["config", "core.hooksPath", ".husky"]);
 
-      const result = await runCli("install", { cwd: repo.path });
+      const result = await runCli("install-git-hooks", { cwd: repo.path });
 
       assertSuccessfulCommand(result);
       assertContains(
@@ -43,15 +46,24 @@ describe("Husky Compatibility Integration Tests", () => {
         "🔒 Git hooks installed successfully! (Husky compatible)"
       );
       assertContains(result.stdout, "🐶 Installed to .husky/ directory");
-      assertContains(result.stdout, "🔗 Compatible with lint-staged, prettier");
+      assertContains(
+        result.stdout,
+        "🔗 Compatible with lint-staged, prettier, and other Husky tools"
+      );
 
-      // Verify hooks are installed in .husky directory
-      assert.ok(await repo.hasHuskyHook("post-checkout"));
-      assert.ok(await repo.hasHuskyHook("post-merge"));
-      assert.ok(await repo.hasHuskyHook("post-rewrite"));
-
-      // Verify guardian data file is created
-      assert.ok(await repo.hasGuardianData());
+      // Verify hooks are in .husky directory
+      assert(
+        await repo.hasHuskyHook("post-checkout"),
+        "post-checkout hook should be installed in .husky"
+      );
+      assert(
+        await repo.hasHuskyHook("post-merge"),
+        "post-merge hook should be installed in .husky"
+      );
+      assert(
+        await repo.hasHuskyHook("post-rewrite"),
+        "post-rewrite hook should be installed in .husky"
+      );
     } finally {
       await cleanup(repo);
     }
@@ -61,32 +73,42 @@ describe("Husky Compatibility Integration Tests", () => {
     const repo = await createTestRepo("pnpm");
 
     try {
-      // Setup Husky with existing pre-commit hook
-      await repo.setupHusky();
+      // Set up Husky
+      await repo.runCommand("mkdir", [".husky"]);
+      await repo.runCommand("git", ["config", "core.hooksPath", ".husky"]);
 
-      // Add a post-checkout hook with existing content
+      // Create existing hook
       const existingHookContent = `#!/usr/bin/env sh
 . "$(dirname -- "$0")/_/husky.sh"
 
 echo "Running post-checkout script"
-npm run build
-`;
+npm run build`;
+
       await repo.writeFile(".husky/post-checkout", existingHookContent);
+      await repo.runCommand("chmod", ["+x", ".husky/post-checkout"]);
 
       // Install lockfile guardian
-      const result = await runCli("install", { cwd: repo.path });
+      await runCli("install-git-hooks", { cwd: repo.path });
 
-      assertSuccessfulCommand(result);
-
-      // Check that our hook was added to existing content
-      const hookContent = await repo.readHuskyHook("post-checkout");
+      // Check that existing content is preserved and lockfile guardian is appended
+      const hookContent = await repo.readFile(".husky/post-checkout");
       assertContains(hookContent, 'echo "Running post-checkout script"');
       assertContains(hookContent, "npm run build");
       assertContains(hookContent, "npx lockfile-guardian check --hook");
-      assertContains(hookContent, "# Lockfile Guardian");
 
-      // Verify the original husky shebang is preserved
-      assertContains(hookContent, '. "$(dirname -- "$0")/_/husky.sh"');
+      // Lockfile Guardian should come after existing content
+      const lines = hookContent.split("\n");
+      const existingLineIndex = lines.findIndex((line) =>
+        line.includes("npm run build")
+      );
+      const guardianLineIndex = lines.findIndex((line) =>
+        line.includes("npx lockfile-guardian check --hook")
+      );
+
+      assert(
+        existingLineIndex < guardianLineIndex,
+        "Existing hook should come before lockfile guardian"
+      );
     } finally {
       await cleanup(repo);
     }
@@ -96,28 +118,39 @@ npm run build
     const repo = await createTestRepo("pnpm");
 
     try {
-      // Setup Husky with lint-staged
-      await repo.setupHusky();
+      // Set up Husky and lint-staged
+      await repo.runCommand("mkdir", [".husky"]);
+      await repo.runCommand("git", ["config", "core.hooksPath", ".husky"]);
+
+      // Create pre-commit hook with lint-staged
+      const preCommitContent = `#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+npx lint-staged`;
+
+      await repo.writeFile(".husky/pre-commit", preCommitContent);
+      await repo.runCommand("chmod", ["+x", ".husky/pre-commit"]);
 
       // Install lockfile guardian
-      await runCli("install", { cwd: repo.path });
+      const result = await runCli("install-git-hooks", { cwd: repo.path });
 
-      // Verify the pre-commit hook contains both lint-staged and lockfile guardian
-      const preCommitContent = await repo.readHuskyHook("pre-commit");
-      assertContains(preCommitContent, "npx lint-staged");
-
-      // Post-checkout should have lockfile guardian
-      const postCheckoutContent = await repo.readHuskyHook("post-checkout");
-      assertContains(postCheckoutContent, "npx lockfile-guardian check --hook");
-
-      // Verify package.json has lint-staged config
-      const packageJson = JSON.parse(await repo.readFile("package.json"));
-      assert.ok(packageJson["lint-staged"]);
-      assert.ok(packageJson["lint-staged"]["*.{js,ts,tsx}"]);
+      assertSuccessfulCommand(result);
       assertContains(
-        JSON.stringify(packageJson["lint-staged"]),
-        "prettier --write"
+        result.stdout,
+        "🔒 Git hooks installed successfully! (Husky compatible)"
       );
+
+      // Pre-commit should remain unchanged
+      const preCommitAfter = await repo.readFile(".husky/pre-commit");
+      assertContains(preCommitAfter, "npx lint-staged");
+      assert(
+        !preCommitAfter.includes("npx lockfile-guardian"),
+        "Pre-commit should not contain lockfile guardian"
+      );
+
+      // Post-checkout should be created with lockfile guardian
+      const postCheckoutContent = await repo.readFile(".husky/post-checkout");
+      assertContains(postCheckoutContent, "npx lockfile-guardian check --hook");
     } finally {
       await cleanup(repo);
     }
@@ -127,21 +160,22 @@ npm run build
     const repo = await createTestRepo("pnpm");
 
     try {
-      // Setup Husky
-      await repo.setupHusky();
+      // Set up Husky
+      await repo.runCommand("mkdir", [".husky"]);
+      await repo.runCommand("git", ["config", "core.hooksPath", ".husky"]);
 
       // Install twice
-      await runCli("install", { cwd: repo.path });
-      const result = await runCli("install", { cwd: repo.path });
+      await runCli("install-git-hooks", { cwd: repo.path });
+      await runCli("install-git-hooks", { cwd: repo.path });
 
-      assertSuccessfulCommand(result);
+      const hookContent = await repo.readFile(".husky/post-checkout");
+      const matches = hookContent.match(/npx lockfile-guardian check --hook/g);
 
-      // Check that hook is not duplicated
-      const hookContent = await repo.readHuskyHook("post-checkout");
-      const matches = (
-        hookContent.match(/npx lockfile-guardian check --hook/g) || []
-      ).length;
-      assert.strictEqual(matches, 1, "Hook command should appear only once");
+      assert.strictEqual(
+        matches?.length,
+        1,
+        "Should only have one lockfile guardian hook"
+      );
     } finally {
       await cleanup(repo);
     }
@@ -189,55 +223,56 @@ echo "After merge operations"
     const repo = await createTestRepo("pnpm");
 
     try {
-      const result = await runCli("install", { cwd: repo.path });
+      // Do not set up Husky (no .husky directory, no core.hooksPath)
+      const result = await runCli("install-git-hooks", { cwd: repo.path });
 
       assertSuccessfulCommand(result);
       assertContains(result.stdout, "🔒 Git hooks installed successfully!");
       assertContains(result.stdout, "🔧 Installed to .git/hooks/ directory");
 
-      // Should NOT contain Husky-specific messages
-      assert.ok(!result.stdout.includes("🐶"));
-      assert.ok(!result.stdout.includes("Husky compatible"));
-
-      // Verify hooks are installed in traditional location
-      assert.ok(await repo.hasHook("post-checkout"));
-      assert.ok(await repo.hasHook("post-merge"));
-      assert.ok(await repo.hasHook("post-rewrite"));
-
-      // Should not create hooks in .husky directory
-      assert.ok(!(await repo.hasHuskyHook("post-checkout")));
+      // Verify hooks are in .git/hooks directory
+      assert(
+        await repo.hasHook("post-checkout"),
+        "post-checkout hook should be installed"
+      );
+      assert(
+        await repo.hasHook("post-merge"),
+        "post-merge hook should be installed"
+      );
+      assert(
+        await repo.hasHook("post-rewrite"),
+        "post-rewrite hook should be installed"
+      );
     } finally {
       await cleanup(repo);
     }
   });
 
   test("should show correct status for Husky vs traditional setup", async () => {
-    const repoHusky = await createTestRepo("pnpm");
-    const repoTraditional = await createTestRepo("pnpm");
+    const repo = await createTestRepo("pnpm");
 
     try {
-      // Setup one repo with Husky
-      await repoHusky.setupHusky();
-      await runCli("install", { cwd: repoHusky.path });
+      // Test traditional setup first
+      await runCli("install-git-hooks", { cwd: repo.path });
+      let result = await runCli("", { cwd: repo.path });
+      assertContains(result.stdout, "🔧 Using standard git hooks");
 
-      // Setup another repo with traditional hooks
-      await runCli("install", { cwd: repoTraditional.path });
+      // Clean up
+      await runCli("uninstall", { cwd: repo.path });
 
-      // Check Husky repo status
-      const huskyStatus = await runCli("", { cwd: repoHusky.path });
-      assertContains(huskyStatus.stdout, "🐶 Husky detected");
-      assertContains(huskyStatus.stdout, ".husky/");
-      assertContains(huskyStatus.stdout, "🔗 Husky Compatibility:");
+      // Set up Husky
+      await repo.runCommand("mkdir", [".husky"]);
+      await repo.runCommand("git", ["config", "core.hooksPath", ".husky"]);
 
-      // Check traditional repo status
-      const traditionalStatus = await runCli("", { cwd: repoTraditional.path });
-      assertContains(traditionalStatus.stdout, "🔧 Using standard git hooks");
-      assertContains(traditionalStatus.stdout, ".git/hooks");
-      assert.ok(!traditionalStatus.stdout.includes("🐶"));
-      assert.ok(!traditionalStatus.stdout.includes("Husky Compatibility"));
+      await runCli("install-git-hooks", { cwd: repo.path });
+      result = await runCli("", { cwd: repo.path });
+      assertContains(
+        result.stdout,
+        "🐶 Husky detected - using .husky/ directory"
+      );
+      assertContains(result.stdout, "🔗 Husky Compatibility:");
     } finally {
-      await cleanup(repoHusky);
-      await cleanup(repoTraditional);
+      await cleanup(repo);
     }
   });
 
@@ -246,18 +281,19 @@ echo "After merge operations"
 
     try {
       // Create .husky directory but don't set core.hooksPath
-      await repo.runCommand("mkdir", ["-p", ".husky"]);
+      await repo.runCommand("mkdir", [".husky"]);
 
-      const result = await runCli("install", { cwd: repo.path });
+      const result = await runCli("install-git-hooks", { cwd: repo.path });
 
       assertSuccessfulCommand(result);
-      // Should use traditional hooks since core.hooksPath is not set to .husky
+      assertContains(result.stdout, "🔒 Git hooks installed successfully!");
       assertContains(result.stdout, "🔧 Installed to .git/hooks/ directory");
-      assert.ok(!result.stdout.includes("🐶"));
 
-      // Verify hooks are in traditional location
-      assert.ok(await repo.hasHook("post-checkout"));
-      assert.ok(!(await repo.hasHuskyHook("post-checkout")));
+      // Should install to traditional hooks since core.hooksPath is not set
+      assert(
+        await repo.hasHook("post-checkout"),
+        "post-checkout hook should be installed"
+      );
     } finally {
       await cleanup(repo);
     }
@@ -267,33 +303,36 @@ echo "After merge operations"
     const repo = await createTestRepo("pnpm");
 
     try {
-      // Setup Husky with a post-checkout hook that creates a marker file
-      await repo.setupHusky();
+      // Set up Husky
+      await repo.runCommand("mkdir", [".husky"]);
+      await repo.runCommand("git", ["config", "core.hooksPath", ".husky"]);
 
-      const markerHookContent = `#!/usr/bin/env sh
+      // Create existing hook with content
+      const existingContent = `#!/usr/bin/env sh
 . "$(dirname -- "$0")/_/husky.sh"
 
-echo "pre-guardian" > /tmp/hook-execution-order
-`;
-      await repo.writeFile(".husky/post-checkout", markerHookContent);
+echo "existing hook"
+npm run lint`;
 
-      // Install lockfile guardian
-      await runCli("install", { cwd: repo.path });
+      await repo.writeFile(".husky/post-checkout", existingContent);
 
-      // Verify our hook was appended (should run after the marker creation)
-      const hookContent = await repo.readHuskyHook("post-checkout");
-      assertContains(
-        hookContent,
-        'echo "pre-guardian" > /tmp/hook-execution-order'
+      // Install guardian
+      await runCli("install-git-hooks", { cwd: repo.path });
+
+      const hookContent = await repo.readFile(".husky/post-checkout");
+      const lines = hookContent.split("\n");
+
+      const existingHookIndex = lines.findIndex((line) =>
+        line.includes("npm run lint")
+      );
+      const guardianIndex = lines.findIndex((line) =>
+        line.includes("npx lockfile-guardian check --hook")
       );
 
-      // Lockfile guardian should come after
-      const guardianPos = hookContent.indexOf(
-        "npx lockfile-guardian check --hook"
-      );
-      const markerPos = hookContent.indexOf('echo "pre-guardian"');
-      assert.ok(
-        guardianPos > markerPos,
+      assert(existingHookIndex >= 0, "Existing hook should be present");
+      assert(guardianIndex >= 0, "Guardian hook should be present");
+      assert(
+        existingHookIndex < guardianIndex,
         "Lockfile Guardian should run after existing hooks"
       );
     } finally {

@@ -9,7 +9,14 @@ export {
   clearStoredHash,
   getStoredHash,
   storeCurrentHash,
+  updateHashAfterInstall,
 } from "./guardian";
+export {
+  installPostInstallHook,
+  uninstallPostInstallHook,
+  isPostInstallHookInstalled,
+  runPostInstallHook,
+} from "./post-install";
 export * from "./types";
 export {
   findLockfile,
