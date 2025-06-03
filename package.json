@@ -23,8 +23,16 @@
     "guardian",
     "cli"
   ],
-  "author": "",
+  "author": "Ian Langworth",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/statico/lockfile-guardian.git"
+  },
+  "homepage": "https://github.com/statico/lockfile-guardian",
+  "bugs": {
+    "url": "https://github.com/statico/lockfile-guardian/issues"
+  },
   "engines": {
     "node": ">=14"
   },
