@@ -197,9 +197,56 @@ lodash@^4.17.21:
     await writeFile(join(this.path, relativePath), content);
   }
 
+  async waitForFileSystemSync() {
+    // In CI environments, add a small delay and verify file system state
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    // Try to read the lockfile to ensure it's accessible and wait for it to stabilize
+    let retries = 0;
+    const maxRetries = 5;
+    let lastContent = null;
+
+    while (retries < maxRetries) {
+      try {
+        let lockfilePath;
+        if (this.packageManager === "npm") {
+          lockfilePath = join(this.path, "package-lock.json");
+        } else if (this.packageManager === "yarn") {
+          lockfilePath = join(this.path, "yarn.lock");
+        } else {
+          lockfilePath = join(this.path, "pnpm-lock.yaml");
+        }
+
+        const content = await readFile(lockfilePath, "utf8");
+
+        if (lastContent === null) {
+          lastContent = content;
+          await new Promise((resolve) => setTimeout(resolve, 50));
+          retries++;
+          continue;
+        }
+
+        // Check if content has stabilized
+        if (content === lastContent) {
+          break;
+        }
+
+        lastContent = content;
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        retries++;
+      } catch {
+        // If we can't read the lockfile, wait a bit more
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        retries++;
+      }
+    }
+  }
+
   async commitChanges(message = "Test commit") {
     await this.runCommand("git", ["add", "."]);
     await this.runCommand("git", ["commit", "-m", message]);
+    // Ensure file system sync in CI environments
+    await this.waitForFileSystemSync();
   }
 
   async setupHusky() {
@@ -270,10 +317,14 @@ npx lint-staged
 
   async createBranch(branchName) {
     await this.runCommand("git", ["checkout", "-b", branchName]);
+    // Ensure file system sync in CI environments
+    await this.waitForFileSystemSync();
   }
 
   async switchBranch(branchName) {
     await this.runCommand("git", ["checkout", branchName]);
+    // Ensure file system sync in CI environments
+    await this.waitForFileSystemSync();
   }
 }
 
