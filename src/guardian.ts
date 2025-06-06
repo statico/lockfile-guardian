@@ -50,10 +50,15 @@ export function getStoredHash(cwd: string = process.cwd()): string | null {
 }
 
 export function clearStoredHash(cwd: string = process.cwd()): void {
-  const dataPath = getGuardianDataPath(cwd);
+  try {
+    const dataPath = getGuardianDataPath(cwd);
 
-  if (existsSync(dataPath)) {
-    unlinkSync(dataPath);
+    if (existsSync(dataPath)) {
+      unlinkSync(dataPath);
+    }
+  } catch {
+    // If we can't get the guardian data path (e.g., not in git repo),
+    // there's nothing to clear anyway, so fail silently
   }
 }
 
