@@ -19,6 +19,7 @@ export {
 } from "./post-install";
 export * from "./types";
 export {
+  findGitRoot,
   findLockfile,
   isGitRepository,
   isNodeModulesIgnored,

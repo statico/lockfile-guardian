@@ -1,5 +1,12 @@
-import { writeFileSync, readFileSync, existsSync, unlinkSync } from "fs";
+import {
+  writeFileSync,
+  readFileSync,
+  existsSync,
+  unlinkSync,
+  mkdirSync,
+} from "fs";
 import { spawn } from "child_process";
+import { dirname } from "path";
 import {
   findLockfile,
   getGuardianDataPath,
@@ -18,6 +25,13 @@ export function storeCurrentHash(cwd: string = process.cwd()): void {
   }
 
   const dataPath = getGuardianDataPath(cwd);
+
+  // Ensure the directory exists
+  const dir = dirname(dataPath);
+  if (!existsSync(dir)) {
+    mkdirSync(dir, { recursive: true });
+  }
+
   writeFileSync(dataPath, lockfileInfo.hash, "utf8");
 }
 

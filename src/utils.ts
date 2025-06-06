@@ -29,32 +29,63 @@ export function findLockfile(cwd: string = process.cwd()): LockfileInfo | null {
   return null;
 }
 
-export function isGitRepository(cwd: string = process.cwd()): boolean {
-  const gitDir = join(cwd, ".git");
-  try {
-    return existsSync(gitDir) && statSync(gitDir).isDirectory();
-  } catch {
-    return false;
+export function findGitRoot(cwd: string = process.cwd()): string | null {
+  let currentDir = resolve(cwd);
+  const root = resolve("/");
+
+  while (currentDir !== root) {
+    const gitDir = join(currentDir, ".git");
+    try {
+      if (existsSync(gitDir) && statSync(gitDir).isDirectory()) {
+        return currentDir;
+      }
+    } catch {
+      // Continue searching
+    }
+    const parentDir = resolve(currentDir, "..");
+    if (parentDir === currentDir) {
+      break;
+    }
+    currentDir = parentDir;
   }
+
+  return null;
+}
+
+export function isGitRepository(cwd: string = process.cwd()): boolean {
+  return findGitRoot(cwd) !== null;
 }
 
 export function getGitHooksDir(cwd: string = process.cwd()): string {
-  return join(cwd, ".git", "hooks");
+  const gitRoot = findGitRoot(cwd);
+  if (!gitRoot) {
+    throw new Error("Not in a git repository");
+  }
+  return join(gitRoot, ".git", "hooks");
 }
 
 export function getHuskyHooksDir(cwd: string = process.cwd()): string {
-  return join(cwd, ".husky");
+  const gitRoot = findGitRoot(cwd);
+  if (!gitRoot) {
+    throw new Error("Not in a git repository");
+  }
+  return join(gitRoot, ".husky");
 }
 
 export function getGitHooksPath(cwd: string = process.cwd()): string {
+  const gitRoot = findGitRoot(cwd);
+  if (!gitRoot) {
+    throw new Error("Not in a git repository");
+  }
+
   try {
     const { execSync } = require("child_process");
     const result = execSync("git config --get core.hooksPath", {
-      cwd,
+      cwd: gitRoot,
       encoding: "utf8",
       stdio: "pipe",
     });
-    return resolve(cwd, result.trim());
+    return resolve(gitRoot, result.trim());
   } catch {
     // No custom hooks path set, use default
     return getGitHooksDir(cwd);
@@ -62,6 +93,11 @@ export function getGitHooksPath(cwd: string = process.cwd()): string {
 }
 
 export function isHuskyProject(cwd: string = process.cwd()): boolean {
+  const gitRoot = findGitRoot(cwd);
+  if (!gitRoot) {
+    return false;
+  }
+
   // Check if .husky directory exists
   const huskyDir = getHuskyHooksDir(cwd);
   if (!existsSync(huskyDir)) {
@@ -72,13 +108,13 @@ export function isHuskyProject(cwd: string = process.cwd()): boolean {
   try {
     const { execSync } = require("child_process");
     const hooksPath = execSync("git config --get core.hooksPath", {
-      cwd,
+      cwd: gitRoot,
       encoding: "utf8",
       stdio: "pipe",
     }).trim();
 
-    const resolvedHooksPath = resolve(cwd, hooksPath);
-    const resolvedHuskyDir = resolve(cwd, ".husky");
+    const resolvedHooksPath = resolve(gitRoot, hooksPath);
+    const resolvedHuskyDir = resolve(gitRoot, ".husky");
 
     return resolvedHooksPath === resolvedHuskyDir;
   } catch {
@@ -94,7 +130,23 @@ export function getActiveHooksDir(cwd: string = process.cwd()): string {
 }
 
 export function getGuardianDataPath(cwd: string = process.cwd()): string {
-  return join(cwd, ".git", "lockfile-guardian");
+  const gitRoot = findGitRoot(cwd);
+  if (!gitRoot) {
+    throw new Error("Not in a git repository");
+  }
+
+  // For backward compatibility, if we're at the git root, use the old path
+  if (resolve(cwd) === resolve(gitRoot)) {
+    return join(gitRoot, ".git", "lockfile-guardian");
+  }
+
+  // Create a unique path for each project in monorepos
+  const relativePath = resolve(cwd)
+    .replace(resolve(gitRoot), "")
+    .replace(/^\//, "");
+  const safePath = relativePath.replace(/[^a-zA-Z0-9-_]/g, "_");
+
+  return join(gitRoot, ".git", "lockfile-guardian", safePath);
 }
 
 export function loadConfig(
