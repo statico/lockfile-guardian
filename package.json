@@ -1,6 +1,6 @@
 {
   "name": "lockfile-guardian",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Never forget to install dependencies again! Automatically detect when your lock files change after git operations and warn you (or auto-install) when your dependencies are out of sync.",
   "main": "dist/index.js",
   "bin": {
